@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension>
+
+	<haxedef name="HXCPP_DEBUGGER" if="debug windows" />
+	
+</extension>

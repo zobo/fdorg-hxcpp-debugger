@@ -1,0 +1,11 @@
+{
+    "name" : "fdorg-hxcpp-debugger",
+    "license" : "MIT",
+    "version" : "1.0.0",
+    "description" : "Haxe classes implementing a debugger interface to the cpp.vm.Debugger class",
+    "contributors" : [ "fdorg", "zobo" ],
+    "releasenote" : "See Changes.md",
+    "dependencies" : {
+        "hxcpp" : ""
+    }
+}
