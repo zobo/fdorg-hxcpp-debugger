@@ -105,6 +105,16 @@ class DebuggerThread
         
         // Once this function is called, the current thread can break
         Debugger.enableCurrentThreadDebugging(true);
+		
+		
+		// dealing with critical erros is a must
+		untyped __global__.__hxcpp_set_critical_error_handler
+		(
+			function(text:String):Void {
+				throw text;
+			}
+		);
+		
     }
 
 
@@ -250,7 +260,11 @@ class DebuggerThread
                     emit(this.setExpression(unsafe, lhs, rhs), id);
 				
 				case GetExpression(unsafe, expression):
+					// we need to completely remove debugger event because we execute user code that can cause a fatal error
+					// and there is currently no way to prevent a deadlock
+					Debugger.setEventNotificationHandler(null);
 					emit(this.getExpression(unsafe, expression), id);
+					Debugger.setEventNotificationHandler(handleThreadEvent);
                 }
             }
         }
@@ -275,7 +289,7 @@ class DebuggerThread
     }
 
     private function handleThreadEvent(threadNumber : Int, event : Int,
-                                       className : String,
+                                       stackFrame : Int, className : String,
                                        functionName : String,
                                        fileName : String, lineNumber : Int)
     {
@@ -910,7 +924,7 @@ class DebuggerThread
                 return Reflect.compare(a, b);
             });
 
-        return Variables(variables);
+			return Variables(variables);
     }
 
     private function printExpression(unsafe : Bool,
@@ -1370,7 +1384,7 @@ private class TypeHelpers
 			}
 			
 			for (f in fields) {
-				var fieldValue = Reflect.getProperty(value, f);
+				//var fieldValue = Reflect.getProperty(value, f);
 				list = VariableNameList.Element(
 					VariableName.Variable(
 						Std.string(f), 
