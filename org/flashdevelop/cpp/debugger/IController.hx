@@ -63,6 +63,9 @@ enum Command
     Files;
     // Response: StringList
 
+    FilesFullPath;
+    // Response: StringList
+
     Classes;
     // Response: StringList
 
@@ -244,19 +247,13 @@ enum ThreadWhereList
 
 enum VariableValue
 {
-	Item(type : String, value : String, children : VariableNameList);
+	Item(type : String, value : String, children : Array<VariableName>);
 	NoItem;
 }
 
 enum VariableName
 {
 	Variable(name : String, fullName : String, isStatic : Bool, value : VariableValue);
-}
-
-enum VariableNameList
-{
-	Terminator;
-	Element(variable : VariableName, next: VariableNameList);
 }
 
 /**
@@ -283,6 +280,7 @@ enum Message
     Exited;
     Detached;
     Files(list : Array<String>);
+    FilesFullPath(list : Array<String>);
     Classes(list : Array<String>);
     MemBytes(bytes : Int);
     Compacted(bytesBefore : Int, bytesAfter : Int);

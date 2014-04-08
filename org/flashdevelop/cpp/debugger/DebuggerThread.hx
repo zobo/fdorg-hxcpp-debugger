@@ -174,6 +174,9 @@ class DebuggerThread
                 case Files:
                     emit(this.files(), id);
 
+                case FilesFullPath:
+                    emit(this.filesFullPath(), id);
+
                 case Classes:
                     emit(this.classes(), id);
 
@@ -336,15 +339,17 @@ class DebuggerThread
 
 	private function files() : Message
 	{
+        // Preserve order to match filesFullPath
 		var files = Debugger.getFiles();
 
-		files.sort(function (a : String, b : String) {
-			return Reflect.compare(a, b);
-		});
-
-		return Files(files);
+		return Files( Debugger.getFiles() );
 	}
 
+    private function filesFullPath() : Message
+    {
+        return FilesFullPath( Debugger.getFilesFullPath() );
+    }
+	
     private function classes() : Message
     {
         var classes = Debugger.getClasses();
@@ -1327,52 +1332,50 @@ private class TypeHelpers
         case TEnum(e):
         case TNull:
         case TFunction:
-			return VariableValue.Item(getValueTypeName(value), Std.string(value), VariableNameList.Terminator);
+			return VariableValue.Item(getValueTypeName(value), Std.string(value), new Array<VariableName>());
         case TObject:
-			var list: VariableNameList = VariableNameList.Terminator;
+			var list: Array<VariableName> = new Array<VariableName>();
 			var fields = new Array<String>();
 			for (f in Reflect.fields(value)) {
 				fields.unshift(f);
 			}
 			for (f in fields) {
 				var fieldValue = Reflect.field(value, f);
-				list = VariableNameList.Element(
+				list.push(
 					VariableName.Variable(
 						Std.string(f), 
 						parentName + "." + f, 
 						false,
-						VariableValue.NoItem),
+						VariableValue.NoItem)
 						//getVariableValue(parentName + "." + f, fieldValue)),
-					list
 				);
 			}
-			return VariableValue.Item(getValueTypeName(value), "tobject", list);
+			return VariableValue.Item(getValueTypeName(value), "Object", list);
         case TClass(Array):
             var arr : Array<Dynamic> = cast value;
-			var list: VariableNameList = VariableNameList.Terminator;
+			var list: Array<VariableName> = new Array<VariableName>();
 			for (i in 0...arr.length) {
-				list = VariableNameList.Element(
+				list.push(
 					VariableName.Variable(
 						Std.string(i), 
 						parentName + "[" + i + "]", 
 						false,
-						VariableValue.NoItem),
+						VariableValue.NoItem)
 						//getVariableValue(parentName + "[" + i + "]", arr[i])),
-					list
 				);
 			}
-			return VariableValue.Item(getValueTypeName(value), "arr", list);
+			return VariableValue.Item(getValueTypeName(value), "Array", list);
         case TClass(String):
-			return VariableValue.Item(getValueTypeName(value), Std.string(value), VariableNameList.Terminator);
+			return VariableValue.Item(getValueTypeName(value), Std.string(value), new Array<VariableName>());
         case TClass(DebuggerVariables):
-			return VariableValue.Item(getValueTypeName(value), value.toString(), VariableNameList.Terminator);
+			return VariableValue.Item(getValueTypeName(value), value.toString(), new Array<VariableName>());
         case TClass(c):
 			var klass = Type.getClass(value);
 			if (klass == null) {
 				// this is abnormal?
-				return VariableValue.Item(getValueTypeName(value), Std.string(value), VariableNameList.Terminator);
+				return VariableValue.Item(getValueTypeName(value), Std.string(value), new Array<VariableName>());
 			}
-			var list: VariableNameList = VariableNameList.Terminator;
+			var list: Array<VariableName> = new Array<VariableName>();
 			var fields = new Array<String>();
 
 			// todo, do a recursive super class lookup first and get fields from parent-most class first
@@ -1385,14 +1388,13 @@ private class TypeHelpers
 			
 			for (f in fields) {
 				//var fieldValue = Reflect.getProperty(value, f);
-				list = VariableNameList.Element(
+				list.push(
 					VariableName.Variable(
 						Std.string(f), 
 						parentName + "." + f, 
 						false,
-						VariableValue.NoItem),
+						VariableValue.NoItem)
 						//getVariableValue(parentName + "." + f, fieldValue)),
-					list
 				);
 			}
 
@@ -1412,22 +1414,21 @@ private class TypeHelpers
 			}
 
 			for (f in fields) {
-				var fieldValue = Reflect.getProperty(value, f);
-				list = VariableNameList.Element(
+				//var fieldValue = Reflect.getProperty(value, f);
+				list.push(
 					VariableName.Variable(
 						Std.string(f), 
 						parentName + "." + f, 
 						true,
-						VariableValue.NoItem),
+						VariableValue.NoItem)
 						//getVariableValue(parentName + "." + f, fieldValue)),
-					list
 				);
 			}
 			
-			return VariableValue.Item(getValueTypeName(value), "tclass", list);
+			return VariableValue.Item(getValueTypeName(value), Std.string(c), list);
         }
         
-		return VariableValue.Item(getValueTypeName(value), Std.string(value), VariableNameList.Terminator);
+		return VariableValue.Item(getValueTypeName(value), Std.string(value), new Array<VariableName>());
 	}
 }
 
@@ -1980,22 +1981,25 @@ private class ExpressionHelper
 
         var found = false;
 
-        for (f in Type.getInstanceFields(klass).concat
-                 (Type.getClassFields(klass))) {
-            if (f == arr[index]) {
-                found = true;
-                break;
-            }
-        }
+		while (klass != null) {
+			for (f in Type.getInstanceFields(klass).concat
+					 (Type.getClassFields(klass))) {
+				if (f == arr[index]) {
+					found = true;
+					break;
+				}
+			}
 
-        if (!found) {
-            // Try the super class
-            klass = Type.getSuperClass(klass);
-            if (klass != null) {
-                return resolveField(klass, arr, index);
-            }
-            return null;
-        }
+			if (!found) {
+				// Try the super class
+				klass = Type.getSuperClass(klass);
+				if (klass != null) {
+					continue;
+				}
+				return null;
+			}
+			break;
+		}
 
         if (index == (arr.length - 1)) {
             return ExpressionEnum.FieldRef(value, arr[index]);
